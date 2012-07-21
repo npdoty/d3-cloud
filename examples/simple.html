@@ -1,4 +1,4 @@
-<script src="../lib/d3/d3.js"></script>
+<script src="../lib/d3/d3.js"></script> <!-- does this need to be upgraded to V2? -->
 <script src="../d3.layout.cloud.js"></script>
 <body>
 <script>
@@ -8,25 +8,25 @@
         "than", "this"].map(function(d) {
         return {text: d, size: 10 + Math.random() * 90};
       }))
-      .rotate(function() { return ~~(Math.random() * 2) * 90; })
+      .rotate(function() { return ~~(Math.random() * 2) * 90; }) // ~~ truncates a float, but in a way that's harder to understand
       .fontSize(function(d) { return d.size; })
-      .on("end", draw)
+      .on("end", draw)  // subscribe to the end event with the draw function below; the first parameter will be "tags", the resulting array of the words and their positional info
       .start();
 
   function draw(words) {
-    d3.select("body").append("svg")
+    d3.select("body").append("svg") // create a new svg element
         .attr("width", 300)
         .attr("height", 300)
-      .append("g")
-        .attr("transform", "translate(150,150)")
-      .selectAll("text")
+      .append("g")  // create a "group" element for all the words
+        .attr("transform", "translate(150,150)")  // transforms are automatically applied to all children
+      .selectAll("text")  // select all the text objects, even though none currently exists
         .data(words)
-      .enter().append("text")
-        .style("font-size", function(d) { return d.size + "px"; })
+      .enter().append("text") // for any data elements that are new (in this case, all of them) append a new text element
+        .style("font-size", function(d) { return d.size + "px"; })    // set all the attributes for the new text element based on its corresponding object in "words" list
         .attr("text-anchor", "middle")
-        .attr("transform", function(d) {
+        .attr("transform", function(d) {  // for each attribute, the function's first parameter, by convention "d", is the bound data object 
           return "translate(" + [d.x, d.y] + ")rotate(" + d.rotate + ")";
         })
-        .text(function(d) { return d.text; });
+        .text(function(d) { return d.text; });  // d3 == data-driven documents, remember?
   }
 </script>
