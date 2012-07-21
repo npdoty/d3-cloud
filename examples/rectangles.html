@@ -1,0 +1,29 @@
+<script src="../d3/d3.v2.js"></script>
+<script src="../d3.layout.cloud.js"></script>
+<body>
+<script>
+  d3.layout.cloud().size([500, 500])
+        .rectangles(['blue','green','red','black','orange','red','purple'].map(function(d) {
+          return {color: d, width: 10 + Math.random() * 90, height: 10 + Math.random() * 90};
+        }))  
+        .on("end", draw)  // subscribe to the end event with the draw function below; the first parameter will be "tags", the resulting array of the words and their positional info
+        .start();
+
+  function draw(words) {
+    console.log(words);
+    window.words = words;
+    d3.select("body").append("svg") // create a new svg element
+        .attr("width", 500)
+        .attr("height", 500)
+      .append("g")  // create a "group" element for all the words
+      .selectAll("rect")
+        .data(words)
+      .enter().append("rect") // for any data elements that are new (in this case, all of them) append a new rect element
+        .attr("width", function(d) { return d.width; })
+        .attr("height", function(d) { return d.height; })
+        .attr("fill", function(d) { return d.color; })    // set all the attributes for the new text element based on its corresponding object in "words" list
+        .attr("transform", function(d) {  // for each attribute, the function's first parameter, by convention "d", is the bound data object 
+          return "translate(" + [d.x + d.x0, d.y + d.y0] + ")";
+        });
+  }
+</script>

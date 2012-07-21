@@ -10,6 +10,7 @@
         padding = cloudPadding,
         spiral = archimedeanSpiral,
         words = [],
+        rectangles = [],
         timeInterval = Infinity,
         event = d3.dispatch("word", "end"),
         timer = null,
@@ -18,18 +19,21 @@
     cloud.start = function() {
       var board = zeroArray((size[0] >> 5) * size[1]),
           bounds = null,
-          n = words.length,
+          n = rectangles.length,
           i = -1,
           tags = [],
-          data = words.map(function(d, i) {
+          data = rectangles.map(function(d, i) {
         return {
-          text: text.call(this, d, i),
-          font: font.call(this, d, i),
-          rotate: rotate.call(this, d, i),
-          size: ~~fontSize.call(this, d, i),
+          color: d.color,
+          width: d.width,
+          height: d.height,
+          x1: d.width >> 1,
+          y1: d.height >> 1,
+          x0: -1 * (d.width >> 1),
+          y0: -1 * (d.height >> 1),
           padding: cloudPadding.call(this, d, i)
         };
-      }).sort(function(a, b) { return b.size - a.size; });
+      }).sort(function(a, b) { return (b.width * b.height) - (a.width * a.height); });
 
       if (timer) clearInterval(timer);
       timer = setInterval(step, 0);
@@ -42,17 +46,17 @@
             d;
         while (+new Date - start < timeInterval && ++i < n && timer) {
           d = data[i];
-          d.x = (size[0] * (Math.random() + .5)) >> 1;
-          d.y = (size[1] * (Math.random() + .5)) >> 1;
-          cloudSprite(d, data, i);
-          if (place(board, d, bounds)) {
+          // d.x = (d.width * (Math.random() + .5)) >> 1;   // start somewhat randomly
+          // d.y = (d.height * (Math.random() + .5)) >> 1;
+          // d.x = 0; // start in the top-left
+          // d.y = 0;
+          d.x = size[0] >> 1; // start in the center
+          d.y = size[1] >> 1;
+          if (place(board, d, bounds, tags)) {
             tags.push(d);
             event.word(d);
             if (bounds) cloudBounds(bounds, d);
             else bounds = [{x: d.x + d.x0, y: d.y + d.y0}, {x: d.x + d.x1, y: d.y + d.y1}];
-            // Temporary hack
-            d.x -= size[0] >> 1;
-            d.y -= size[1] >> 1;
           }
         }
         if (i >= n) {
@@ -76,7 +80,7 @@
       return cloud;
     };
 
-    function place(board, tag, bounds) {
+    function place(board, tag, bounds, tags) {
       var perimeter = [{x: 0, y: 0}, {x: size[0], y: size[1]}],
           startX = tag.x,
           startY = tag.y,
@@ -90,7 +94,7 @@
 
       while (dxdy = s(t += dt)) {
         dx = ~~dxdy[0];
-        dy = ~~dxdy[1];
+        dy = ~~dxdy[1];        
 
         if (Math.min(dx, dy) > maxDelta) break;
 
@@ -100,28 +104,21 @@
         if (tag.x + tag.x0 < 0 || tag.y + tag.y0 < 0 ||
             tag.x + tag.x1 > size[0] || tag.y + tag.y1 > size[1]) continue;
         // TODO only check for collisions within current bounds.
-        if (!bounds || !cloudCollide(tag, board, size[0])) {
-          if (!bounds || collideRects(tag, bounds)) {
-            var sprite = tag.sprite,
-                w = tag.width >> 5,
-                sw = size[0] >> 5,
-                lx = tag.x - (w << 4),
-                sx = lx & 0x7f,
-                msx = 32 - sx,
-                h = tag.y1 - tag.y0,
-                x = (tag.y + tag.y0) * sw + (lx >> 5),
-                last;
-            for (var j = 0; j < h; j++) {
-              last = 0;
-              for (var i = 0; i <= w; i++) {
-                board[x + i] |= (last << msx) | (i < w ? (last = sprite[j * w + i]) >>> sx : 0);
+          if (bounds && collideRects(tag, bounds)) {
+            var collide = false;
+            var j = 0;
+            while (!collide && j < tags.length) {
+              if (collideRects(tag, tags[j])) {
+                collide = true;
               }
-              x += sw;
+              j++;
             }
-            delete tag.sprite;
+            if (!collide) {
+              return true;
+            }
+          } else {
             return true;
-          }
-        }
+          }   
       }
       return false;
     }
@@ -129,6 +126,12 @@
     cloud.words = function(x) {
       if (!arguments.length) return words;
       words = x;
+      return cloud;
+    };
+
+    cloud.rectangles = function(x) {
+      if (!arguments.length) return rectangles;
+      rectangles = x;
       return cloud;
     };
 
@@ -197,117 +200,6 @@
     return 1;
   }
 
-  // Fetches a monochrome sprite bitmap for the specified text.
-  // Load in batches for speed.
-  function cloudSprite(d, data, di) {
-    if (d.sprite) return;
-    c.clearRect(0, 0, cw << 5, ch);
-    var x = 0,
-        y = 0,
-        maxh = 0,
-        n = data.length;
-    di--;
-    while (++di < n) {
-      d = data[di];
-      c.save();
-      c.font = (d.size + 1) + "px " + d.font;
-      var w = c.measureText(d.text + "m").width,
-          h = d.size << 1;
-      if (d.rotate) {
-        var sr = Math.sin(d.rotate * cloudRadians),
-            cr = Math.cos(d.rotate * cloudRadians),
-            wcr = w * cr,
-            wsr = w * sr,
-            hcr = h * cr,
-            hsr = h * sr;
-        w = (Math.max(Math.abs(wcr + hsr), Math.abs(wcr - hsr)) + 0x1f) >> 5 << 5;
-        h = ~~Math.max(Math.abs(wsr + hcr), Math.abs(wsr - hcr));
-      } else {
-        w = (w + 0x1f) >> 5 << 5;
-      }
-      if (h > maxh) maxh = h;
-      if (x + w >= (cw << 5)) {
-        x = 0;
-        y += maxh;
-        maxh = 0;
-      }
-      if (y + h >= ch) break;
-      c.translate(x + (w >> 1), y + (h >> 1));
-      if (d.rotate) c.rotate(d.rotate * cloudRadians);
-      c.fillText(d.text, 0, 0);
-      c.restore();
-      d.width = w;
-      d.height = h;
-      d.xoff = x;
-      d.yoff = y;
-      d.x1 = w >> 1;
-      d.y1 = h >> 1;
-      d.x0 = -d.x1;
-      d.y0 = -d.y1;
-      x += w;
-    }
-    var pixels = c.getImageData(0, 0, cw << 5, ch).data,
-        sprite = [];
-    while (--di >= 0) {
-      d = data[di];
-      var w = d.width,
-          w32 = w >> 5,
-          h = d.y1 - d.y0,
-          p = d.padding;
-      // Zero the buffer
-      for (var i = 0; i < h * w32; i++) sprite[i] = 0;
-      x = d.xoff;
-      if (x == null) return;
-      y = d.yoff;
-      var seen = 0,
-          seenRow = -1;
-      for (var j = 0; j < h; j++) {
-        for (var i = 0; i < w; i++) {
-          var k = w32 * j + (i >> 5),
-              m = (pixels[((y + j) * (cw << 5) + (x + i)) << 2] ? 1 : 0) << (31 - (i % 32));
-          if (p) {
-            if (j) sprite[k - w32] |= m;
-            if (j < w - 1) sprite[k + w32] |= m;
-            m |= (m << 1) | (m >> 1);
-          }
-          sprite[k] |= m;
-          seen |= m;
-        }
-        if (seen) seenRow = j;
-        else {
-          d.y0++;
-          h--;
-          j--;
-          y++;
-        }
-      }
-      d.y1 = d.y0 + seenRow;
-      d.sprite = sprite.slice(0, (d.y1 - d.y0) * w32);
-    }
-  }
-
-  // Use mask-based collision detection.
-  function cloudCollide(tag, board, sw) {
-    sw >>= 5;
-    var sprite = tag.sprite,
-        w = tag.width >> 5,
-        lx = tag.x - (w << 4),
-        sx = lx & 0x7f,
-        msx = 32 - sx,
-        h = tag.y1 - tag.y0,
-        x = (tag.y + tag.y0) * sw + (lx >> 5),
-        last;
-    for (var j = 0; j < h; j++) {
-      last = 0;
-      for (var i = 0; i <= w; i++) {
-        if (((last << msx) | (i < w ? (last = sprite[j * w + i]) >>> sx : 0))
-            & board[x + i]) return true;
-      }
-      x += sw;
-    }
-    return false;
-  }
-
   function cloudBounds(bounds, d) {
     var b0 = bounds[0],
         b1 = bounds[1];
@@ -317,8 +209,15 @@
     if (d.y + d.y1 > b1.y) b1.y = d.y + d.y1;
   }
 
+  function coordsForRect(rect) {
+    return [{x: rect.x + rect.x0, y: rect.y + rect.y0}, {x: rect.x + rect.x1, y: rect.y + rect.y1}];
+  }
+
   function collideRects(a, b) {
-    return a.x + a.x1 > b[0].x && a.x + a.x0 < b[1].x && a.y + a.y1 > b[0].y && a.y + a.y0 < b[1].y;
+    aRect = (a.length) ? a : coordsForRect(a);
+    bRect = (b.length) ? b : coordsForRect(b);
+    
+    return aRect[1].x > bRect[0].x && aRect[0].x < bRect[1].x && aRect[1].y > bRect[0].y && aRect[0].y < bRect[1].y;
   }
 
   function archimedeanSpiral(size) {
