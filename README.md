@@ -1,11 +1,7 @@
-# Word Cloud Layout
+# Cloud Layout
 
-This is a [Wordle](http://www.wordle.net/)-inspired word cloud layout written
-in JavaScript. It uses HTML5 canvas and sprite masks to achieve
-near-interactive speeds.
-
-See [here](http://www.jasondavies.com/wordcloud/) for an interactive
-demonstration along with implementation details.
+Based on a [Wordle](http://www.wordle.net/)-inspired word cloud layout written
+in JavaScript. In progress: extending to work with shapes (like rectangles), not just words.
 
 ![Example cloud of Twitter search results for “amazing”](http://www.jasondavies.com/wordcloud/amazing.png)
 
